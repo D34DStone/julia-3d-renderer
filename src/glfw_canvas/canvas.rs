@@ -85,8 +85,8 @@ fn init_opengl(window: &mut glfw::Window) {
 
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
     unsafe {
-        Shader::new("glfw_canvas/shaders/index.vs", 
-                    "glfw_canvas/shaders/index.fs").useProgram();
+        Shader::new("src/glfw_canvas/shaders/index.vs", 
+                    "src/glfw_canvas/shaders/index.fs").useProgram();
         gl::GenVertexArrays(1, &mut VAO);
         gl::GenBuffers(1, &mut VBO);
         gl::GenBuffers(1, &mut EBO);
