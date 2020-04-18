@@ -95,7 +95,7 @@ impl DepthBuffer {
 }
 
 mod math_utils {
-    use std::ops::{Sub, Mul};
+    use std::ops::{Sub, Mul, Div};
     use std::cmp::{PartialOrd};
 
     pub fn rasterize_dot(
@@ -152,6 +152,25 @@ mod math_utils {
         let zero = T::from(0_i32);
         (s1 >= zero && s2 >= zero && s3 >= zero)
         || (s1 <= zero && s2 <= zero && s3 <= zero)
+    }
+
+    /// Returns alpha and lambda such that 
+    /// ``` alpha * basis1 + lambda * basis2 = vec ```
+    pub fn as_linear_combination<T:
+        Sub<Output=T> + 
+        Mul<Output=T> + 
+        Div<Output=T> + 
+        Copy> (
+        vec: (T, T),
+        basis1: (T, T),
+        basis2: (T, T)) -> (T, T) {
+        let (x0, y0) = vec;
+        let (x1, y1) = basis1;
+        let (x2, y2) = basis2;
+        (
+            (x0 * y2 - x2 * y0) / (x1 * y2 - x2 * y1),
+            (x0 * y1 - x1 * y0) / (x2 * y1 - x1 * y2),
+        )
     }
 }
 
@@ -223,13 +242,11 @@ impl Rasterizer for NaivelyRas {
                  b: (f32, f32, f32), 
                  c: (f32, f32, f32), 
                  mut buffer: DepthBuffer) -> DepthBuffer {
-         
         let DepthBuffer {
             width: width_px,
             height: height_px, 
             buffer: _,
         } = buffer;
-
         let (xa, ya, a_depth) = a;
         let (xb, yb, b_depth) = b;
         let (xc, yc, c_depth) = c;
@@ -244,6 +261,14 @@ impl Rasterizer for NaivelyRas {
             max(xa_px, max(xb_px, xc_px)),
             max(ya_px, max(yb_px, yc_px)),
         );
+        let vab_px = (
+            (xb_px - xa_px) as f32,
+            (yb_px - ya_px) as f32,
+        );
+        let vac_px = (
+            (xc_px - xa_px) as f32,
+            (yc_px - ya_px) as f32,
+        );
         for x in x_px_min..=x_px_max {
             for y in y_px_min..=y_px_max {
                 if !math_utils::is_dot_inside_triangle(
@@ -253,8 +278,21 @@ impl Rasterizer for NaivelyRas {
                     (xc_px, yc_px)) {
                     continue;
                 }
+                let vec_px = (
+                    (x - xa_px) as f32,
+                    (y - ya_px) as f32,
+                );
+                let (k1, k2) = math_utils::as_linear_combination(vec_px, vab_px, vac_px);
+                let depth = a_depth + k1 * (b_depth - a_depth) + k2 * (c_depth - a_depth);
 
-                buffer.plot_i32((x, y, 1.0), color);
+                let (r, g, b) = color;
+                let color2 = (
+                    (depth * r as f32).round() as u8,
+                    (depth * g as f32).round() as u8,
+                    (depth * b as f32).round() as u8
+                );
+
+                buffer.plot_i32((x, y, depth), color2);
             }
         }
         buffer
@@ -273,6 +311,7 @@ fn main() {
     let mut data = vec![(0_u8, 0_u8, 0_u8); (WIDTH*HEIGHT) as usize];
 
     let mut depth_buffer = DepthBuffer::new(512, 512);
+    /*
     depth_buffer = NaivelyRas::rasterize_line(
         RED,
         (0.5, 0.5, 0.5), 
@@ -281,15 +320,23 @@ fn main() {
 
     depth_buffer = NaivelyRas::rasterize_line(
         GREEN,
-        (0.5, -0.5, 0.99), 
-        (-0.5, 0.5, 0.99), 
+        (0.5, -0.5, 0.5), 
+        (-0.5, 0.5, 0.5), 
+        depth_buffer);
+    */
+    
+    depth_buffer = NaivelyRas::rasterize_triagnle(
+        RED, 
+        (0.5, 0.0, 1.0),
+        (-0.5, 0.5, 0.0),
+        (-0.5, -0.5, 0.0),
         depth_buffer);
 
     depth_buffer = NaivelyRas::rasterize_triagnle(
-        RED, 
-        (0.5, 0.5, 1.0),
-        (-0.5, 0.5, 1.0),
-        (-0.5, -0.5, 1.0),
+        GREEN, 
+        (-0.5, 0.0, 1.0),
+        (0.5, 0.5, 0.0),
+        (0.5, -0.5, 0.0),
         depth_buffer);
 
     depth_buffer.write(&mut data);
