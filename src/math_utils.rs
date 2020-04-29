@@ -1,5 +1,80 @@
 use std::ops::{Sub, Mul, Div};
-use std::cmp::{PartialOrd};
+use std::cmp::{PartialOrd, Ordering};
+use nalgebra as na;
+
+pub fn rasterize_dot_1(
+    dot             : na::Vector2<f32>,
+    dim             : na::Vector2<u32>) -> na::Vector2<i32> {
+    assert!(dot.x.abs() <= 1.0, "X must be in range [-1, 1]");
+    assert!(dot.y.abs() <= 1.0, "Y must be in range [-1, 1]");
+    let dim = dim / 2_u32;
+    na::Vector2::<i32>::new(
+        (dot.x * dim.x as f32).round() as i32,
+        (dot.y * dim.y as f32).round() as i32)
+}
+
+pub fn oriented_area_1(
+    a: &na::Vector2<f32>,
+    b: &na::Vector2<f32>,
+    c: &na::Vector2<f32>) -> f32 {
+    (b.x - a.x) * (c.y - b.y) - (c.x - b.x) * (b.y - a.y)
+}
+
+pub fn is_dot_inside_triangle_1(
+    a: na::Vector2<f32>,
+    b: na::Vector2<f32>,
+    c: na::Vector2<f32>,
+    d: na::Vector2<f32>) -> bool {
+    let s1 = self::oriented_area_1(&a, &d, &b); 
+    let s2 = self::oriented_area_1(&b, &d, &c); 
+    let s3 = self::oriented_area_1(&c, &d, &a); 
+    (s1 >= 0.0 && s2 >= 0.0 && s3 >= 0.0) ||
+    (s1 <= 0.0 && s2 <= 0.0 && s3 <= 0.0)
+}
+
+
+// find alpha and lambda so 
+// a = alpha * b + lambda * c.
+pub fn as_linear_combination_1(
+    a: na::Vector2<f32>,
+    b: na::Vector2<f32>,
+    c: na::Vector2<f32>) -> na::Vector2<f32> {
+    na::Matrix2::<f32>::from_columns(&[b, c]).lu().solve(&a).expect("Cant solve linear equation.")
+}
+
+
+// Build the minimal rect hull around given dots so it containts
+// all of them.
+pub fn rect_hull(dots: &[na::Vector2<f32>]) -> (na::Vector2<f32>,
+                                                na::Vector2<f32>) {
+    let mut ox: Vec<f32> = dots
+        .iter()
+        .map(|v| v.x)
+        .into_iter()
+        .collect();
+
+    let mut oy: Vec<f32> = dots
+        .iter()
+        .map(|v| v.y)
+        .into_iter()
+        .collect();
+
+    ox.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    oy.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    (
+        na::Vector2::<f32>::new(
+            ox[0],
+            oy[0],
+        ),
+        na::Vector2::<f32>::new(
+            ox.last().unwrap().clone(),
+            oy.last().unwrap().clone(),
+        ),
+    )
+}
+
+// THERE GOES LEGACY...
+
 
 pub fn rasterize_dot(
     d: (f32, f32),

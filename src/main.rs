@@ -3,10 +3,14 @@ mod glfw_canvas;
 mod math_utils;
 mod depth_buffer;
 mod rasterizer;
+mod rasterizer_1;
+
+extern crate nalgebra as na;
 
 use gcanvas::{CanvasAPI, EventAPI, Event};
 use glfw_canvas::GlfwContext;
 use depth_buffer::DepthBuffer;
+use std::time::Instant;
 
 #[allow(dead_code)]
 type RGB = (u8, u8, u8);
@@ -23,26 +27,18 @@ fn main() {
     let mut data = vec![(0_u8, 0_u8, 0_u8); (WIDTH*HEIGHT) as usize];
 
     let mut depth_buffer = DepthBuffer::new(512, 512);
+    let mut rast = rasterizer_1::Rasterizer_::new(512, 512);
 
-    depth_buffer = rasterizer::line(
-        GREEN,
-        (-0.5, 0.0, 0.7), 
-        (0.5, 0.0, 0.7), 
-        depth_buffer);
-    
-    depth_buffer = rasterizer::triagnle(
-        RED, 
-        (0.5, 0.0, 1.0),
-        (-0.5, 0.5, 0.0),
-        (-0.5, -0.5, 0.0),
-        depth_buffer);
-
-    depth_buffer = rasterizer::triagnle(
-        GREEN, 
-        (-0.5, 0.0, 1.0),
-        (0.5, 0.5, 0.0),
-        (0.5, -0.5, 0.0),
-        depth_buffer);
+    let time = Instant::now();
+    for i in 0..1024 {
+        rast.rasterize_triangle_color(
+            na::Vector3::<f32>::new(-0.1, 0.0, 1.0),
+            na::Vector3::<f32>::new(0.1, 0.1, 0.0),
+            na::Vector3::<f32>::new(0.1, -0.1, 0.0),
+            GREEN);
+    }
+    println!("{}ms", time.elapsed().as_millis());
+    println!("{}s", time.elapsed().as_secs());
 
     depth_buffer.write(&mut data);
 
@@ -58,6 +54,6 @@ fn main() {
                 }
             }
         }
-        ctx.update(data.as_ptr());
+        ctx.update(rast.get_color_buffer_ptr());
     }
 }
