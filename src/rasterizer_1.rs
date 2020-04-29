@@ -1,5 +1,4 @@
 use nalgebra as na;
-use std::time::Instant;
 use super::math_utils as utils;
 
 type RGB = (u8, u8, u8);
@@ -101,9 +100,9 @@ impl Rasterizer_ {
     fn line_hull_x(
         a: (i32, i32),
         b: (i32, i32)) -> (i32, Vec<(i32, i32)>) {
-        let mut coords = Self::line(a, b);
-        let xl = *coords.iter().map(|(x, y)| x).min().unwrap();
-        let xr = *coords.iter().map(|(x, y)| x).max().unwrap();
+        let coords = Self::line(a, b);
+        let xl = *coords.iter().map(|(x, _y)| x).min().unwrap();
+        let xr = *coords.iter().map(|(x, _y)| x).max().unwrap();
         let dx = (xr - xl + 1) as usize;
         let mut result = vec![(std::i32::MAX, std::i32::MIN); dx];
         for (x, y) in coords {
@@ -117,8 +116,8 @@ impl Rasterizer_ {
     fn line(
         a: (i32, i32),
         b: (i32, i32)) -> Vec<(i32, i32)> { 
-        let dx = (b.0 - a.0);
-        let dy = (b.1 - a.1);
+        let dx = b.0 - a.0;
+        let dy = b.1 - a.1;
         if dx.abs() >= dy.abs() {
             if dx >= 0 {
                 Self::line_unit_x(a, dx, dy)

@@ -1,5 +1,7 @@
+#![allow(dead_code)]
+
 use std::ops::{Sub, Mul, Div};
-use std::cmp::{PartialOrd, Ordering};
+use std::cmp::{PartialOrd};
 use nalgebra as na;
 
 pub fn rasterize_dot_1(
