@@ -25,6 +25,7 @@ fn main() {
     let mut ctx = GlfwContext::new(WIDTH, HEIGHT, "George");
     let mut rast = rasterizer_1::Rasterizer_::new(512, 512);
 
+    /*
     for _i in 0..1024 {
         rast.rasterize_triangle_color(
             na::Vector3::<f32>::new(-0.1, 0.0, 1.0),
@@ -32,6 +33,17 @@ fn main() {
             na::Vector3::<f32>::new(0.1, -0.1, 0.0),
             color::GREEN);
     }
+    */
+
+    rast.render_segment(
+        rasterizer_1::Vertex {
+            coords  : na::Vector3::new(0.0, 0.0, 0.0),
+            color   : na::Vector3::new(255_u8, 0_u8, 0_u8),
+        },
+        rasterizer_1::Vertex {
+            coords  : na::Vector3::new(0.5, 0.5, -0.5),
+            color   : na::Vector3::new(0_u8, 255_u8, 0_u8),
+        });
 
     let mut working = true;
     while working {

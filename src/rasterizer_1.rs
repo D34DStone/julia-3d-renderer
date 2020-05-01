@@ -10,6 +10,27 @@ pub struct Rasterizer_ {
     height      : u32,
 }
 
+pub struct Vertex {
+    pub coords  : na::Vector3<f32>,
+    pub color   : na::Vector3<u8>,
+}
+
+pub struct LineRaster<'a> {
+    pub coords      : (i32, i32),
+    pub baricentric : [(f32, &'a Vertex); 2],
+}
+
+pub struct PolygonRaster<'a> {
+    pub coords      : (i32, i32),
+    pub baricentric : [(f32, &'a Vertex); 3],
+}
+
+// deprecated
+pub struct Raster {
+    pub coords      : (i32, i32),
+    pub baricentric : (f32, f32),
+}
+
 impl Rasterizer_ {
     pub fn new(width: u32, height: u32) -> Self {
         let buff_sz = (width * height) as usize;
@@ -81,6 +102,156 @@ impl Rasterizer_ {
                 self.color_buffer[index] = color;
             }
         }
+    }
+
+    pub fn rasterize_line_vertex(
+        &mut self,
+        a: Vertex,
+        b: Vertex) {
+        let rasters = self.line_baricentric(a.coords, b.coords);
+        for Raster{
+            coords:         (x, y), 
+            baricentric:    (ka, kb),
+        } in rasters {
+            let color = (
+                (a.color.x as f32 * ka + b.color.x as f32 * kb).round() as u8,
+                (a.color.y as f32 * ka + b.color.y as f32 * kb).round() as u8,
+                (a.color.z as f32 * ka + b.color.z as f32 * kb).round() as u8,
+            );
+
+            let index = self.buff_offset(na::Vector2::new(x, y));
+            self.color_buffer[index] = color;
+        }
+    }
+
+    pub fn rasterize_polygon<'a>(
+        &self, 
+        a: &'a Vertex,
+        b: &'a Vertex,
+        c: &'a Vertex) -> Vec<PolygonRaster<'a>> {
+        unimplemented!()
+    }
+
+    // TODO #1: I couldn't write types for comparator so made it ugly and 
+    // let compiler to do it for me. When you'll better in rust, come and fix it. 
+    //
+    // TODO #2: Wrap return type into struct and doc it because it might be confusing 
+    // 4 u in the future.
+    pub fn build_segment_hull_x<'a>(rasters: &'a Vec<LineRaster<'a>>) -> (i32, Vec<(&'a LineRaster<'a>, &'a LineRaster<'a>)>) {
+        let xl = rasters.iter().min_by(|rast1, rast2| match rast1.coords.0.cmp(&rast2.coords.0) {
+            std::cmp::Ordering::Equal => rast1.coords.0.cmp(&rast2.coords.1),
+            eq@_                      => eq,
+        }).unwrap().coords.0;
+        let xr = rasters.iter().max_by(|rast1, rast2| match rast1.coords.0.cmp(&rast2.coords.0) {
+            std::cmp::Ordering::Equal => rast1.coords.0.cmp(&rast2.coords.1),
+            eq@_                      => eq,
+        }).unwrap().coords.0;
+        let dx = (xl - xr).abs();
+        unimplemented!()
+    }
+
+    pub fn rasterize_segment<'a>(
+        &self,
+        a: &'a Vertex,
+        b: &'a Vertex) -> Vec<LineRaster<'a>> {
+        let ar = utils::rasterize_dot_1(a.coords.xy(), self.size());
+        let br = utils::rasterize_dot_1(b.coords.xy(), self.size());
+        let coords = Self::line((ar.x, ar.y), (br.x, br.y));
+        let mut result = Vec::with_capacity(coords.len());
+        for (x, y) in coords {
+            let da = (ar.x - x).abs();
+            let db = (br.x - x).abs();
+            let sum = (da + db) as f32;
+            let ka = db as f32 / sum;
+            let kb = da as f32 / sum;
+            result.push(LineRaster {
+                coords:         (x, y),
+                baricentric:    [(ka, a), (kb, b)],
+            });
+        }
+        result
+    }
+
+    pub fn render_segment(
+        &mut self,
+        a: Vertex,
+        b: Vertex,
+        ) {
+        for LineRaster {
+            coords: (x, y),
+            baricentric: [(k1, v1), (k2, v2)],
+        } in self.rasterize_segment(&a, &b) {
+            let index = self.buff_offset(na::Vector2::new(x, y));
+            let vertex = Self::merge_vertices_line(v1, v2, k1, k2);
+            let depth = vertex.coords.z;
+            let color = (vertex.color.x, vertex.color.y, vertex.color.z);
+            self.color_buffer[index] = color;
+        }
+    }
+
+    pub fn merge_vertices_line(
+        a: &Vertex,
+        b: &Vertex,
+        ka: f32,
+        kb: f32) -> Vertex {
+        Vertex {
+            coords  : ka * a.coords + kb * b.coords,
+            color   : Self::merge_rgb(a.color, b.color, ka, kb),
+        }
+    }
+
+    pub fn merge_rgb(
+        a: na::Vector3<u8>,
+        b: na::Vector3<u8>,
+        ka: f32, 
+        kb: f32) -> na::Vector3<u8> {
+        let af: na::Vector3<f32> = na::convert(a);
+        let bf: na::Vector3<f32> = na::convert(b);
+        na::try_convert(ka * af + kb * bf).unwrap()
+    }
+
+    // Return type is vector of rasters and their baricentric coords.
+    //
+    // TODO: Wrap return type in a normal data-structure.
+    pub fn line_baricentric(
+        &self,
+        a: na::Vector3<f32>,
+        b: na::Vector3<f32>) -> Vec<Raster> {
+        let ar = utils::rasterize_dot_1(a.xy(), self.size());
+        let br = utils::rasterize_dot_1(b.xy(), self.size());
+        let coords = Self::line((ar.x, ar.y), (br.x, br.y));
+        let mut result = Vec::with_capacity(coords.len());
+        for (x, y) in coords {
+            let da = (ar.x - x).abs();
+            let db = (br.x - x).abs();
+            let sum = (da + db) as f32;
+            let ka = db as f32 / sum;
+            let kb = da as f32 / sum;
+            result.push(Raster {
+                coords:         (x, y),
+                baricentric:    (ka, kb),
+            });
+        }
+        result
+    }
+
+    pub fn provide_with_baricentric(
+        a: (i32, i32),
+        b: (i32, i32),
+        l: Vec<(i32, i32)>) -> Vec<Raster> {
+        let mut result = Vec::with_capacity(l.len());
+        for (x, y) in l {
+            let da = (a.0 - x).abs();
+            let db = (b.0 - x).abs();
+            let sum = (da + db) as f32;
+            let ka = db as f32 / sum;
+            let kb = da as f32 / sum;
+            result.push(Raster {
+                coords:         (x, y),
+                baricentric:    (ka, kb),
+            })
+        }
+        result
     }
     
     pub fn rasterize_line_color(
