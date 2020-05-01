@@ -170,7 +170,29 @@ impl Rasterizer_ {
                     let y1 = rast_max.coords.1;
                     for y in  y0..=y1 {
                         let index = self.buff_offset(na::Vector2::new(x, y));
-                        self.color_buffer[index] = (255_u8, 0_u8, 0_u8);
+                        let d0 = y - y0;
+                        let d1 = y1 - y;
+                        let sum = (d0 + d1) as f32;
+                        let k0 = d1 as f32 / sum;
+                        let k1 = d0 as f32 / sum;
+                        let vertex = PolygonRaster {
+                            coords      : (x, y),
+                            basis       : basis,
+                            baricentric : (k0 * rast_min.baricentric.0 + k1 * rast_max.baricentric.0,
+                                            k0 * rast_min.baricentric.1 + k1 * rast_max.baricentric.1,
+                                            k0 * rast_min.baricentric.2 + k1 * rast_max.baricentric.2),
+                        };
+
+                        let cx = basis.x.color;
+                        let cy = basis.y.color;
+                        let cz = basis.z.color;
+                        let (kx, ky, kz) = vertex.baricentric;
+                        let color = (
+                            (cx.x as f32 * kx + cy.x as f32 * ky + cz.x as f32 * kz).round() as u8,
+                            (cx.y as f32 * kx + cy.y as f32 * ky + cz.y as f32 * kz).round() as u8,
+                            (cx.z as f32 * kx + cy.z as f32 * ky + cz.z as f32 * kz).round() as u8,
+                        );
+                        self.color_buffer[index] = color;
                     }
                 }
             }

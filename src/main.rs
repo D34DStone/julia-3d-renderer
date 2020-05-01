@@ -47,15 +47,15 @@ fn main() {
 
     let basis = rasterizer_1::VertexBasis3 {
         x: rasterizer_1::Vertex {
-            coords  : na::Vector3::new(0.0, 0.0, 0.0),
+            coords  : na::Vector3::new(0.0, 0.0, -1.0),
             color   : na::Vector3::new(255_u8, 0_u8, 0_u8),
         },
         y: rasterizer_1::Vertex {
-            coords  : na::Vector3::new(0.5, 0.5, -0.5),
+            coords  : na::Vector3::new(0.5, 0.5, 1.0),
             color   : na::Vector3::new(0_u8, 255_u8, 0_u8),
         },
         z: rasterizer_1::Vertex {
-            coords  : na::Vector3::new(0.5, 0.0, -0.5),
+            coords  : na::Vector3::new(0.5, 0.0, -1.0),
             color   : na::Vector3::new(0_u8, 0_u8, 255_u8),
         }
     };
