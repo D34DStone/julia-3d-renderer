@@ -45,6 +45,23 @@ fn main() {
             color   : na::Vector3::new(0_u8, 255_u8, 0_u8),
         });
 
+    let basis = rasterizer_1::VertexBasis3 {
+        x: rasterizer_1::Vertex {
+            coords  : na::Vector3::new(0.0, 0.0, 0.0),
+            color   : na::Vector3::new(255_u8, 0_u8, 0_u8),
+        },
+        y: rasterizer_1::Vertex {
+            coords  : na::Vector3::new(0.5, 0.5, -0.5),
+            color   : na::Vector3::new(0_u8, 255_u8, 0_u8),
+        },
+        z: rasterizer_1::Vertex {
+            coords  : na::Vector3::new(0.5, 0.0, -0.5),
+            color   : na::Vector3::new(0_u8, 0_u8, 255_u8),
+        }
+    };
+
+    rast.rasterize_polygon(&basis);
+
     let mut working = true;
     while working {
         for event in ctx.events() {

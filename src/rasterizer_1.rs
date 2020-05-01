@@ -10,6 +10,7 @@ pub struct Rasterizer_ {
     height      : u32,
 }
 
+#[derive(Clone, Copy)]
 pub struct Vertex {
     pub coords  : na::Vector3<f32>,
     pub color   : na::Vector3<u8>,
@@ -17,7 +18,7 @@ pub struct Vertex {
 
 pub struct VertexBasis2 {
     x: Vertex,
-    y: Vertex
+    y: Vertex,
 }
 
 pub struct LineRaster<'a> {
@@ -27,11 +28,12 @@ pub struct LineRaster<'a> {
 }
 
 pub struct VertexBasis3 {
-    x: Vertex,
-    y: Vertex,
-    z: Vertex,
+    pub x: Vertex,
+    pub y: Vertex,
+    pub z: Vertex,
 }
 
+#[derive(Clone, Copy)]
 pub struct PolygonRaster<'a> {
     pub coords      : (i32, i32),
     pub baricentric : (f32, f32, f32),
@@ -113,21 +115,84 @@ impl Rasterizer_ {
     }
     */
 
+    pub fn rasterize_polygon<'a>(
+        &mut self,
+        basis: &'a VertexBasis3) /* -> Vec<PolygonRaster<'a>> */ {
+        let (a, b, c) = (&basis.x, &basis.y, &basis.z);
+        let ab_basis = VertexBasis2{ x: *a, y: *b };
+        let bc_basis = VertexBasis2{ x: *b, y: *c };
+        let ac_basis = VertexBasis2{ x: *a, y: *c };
+        let ab = Self::advance_basis_many(self.rasterize_segment_(&ab_basis), basis, (0, 1));
+        let bc = Self::advance_basis_many(self.rasterize_segment_(&bc_basis), basis, (1, 2));
+        let ac = Self::advance_basis_many(self.rasterize_segment_(&ac_basis), basis, (0, 2));
+        let width = self.size().y as i32;
+        let width_2 = width / 2;
+        let mut hull: Vec<Option<(PolygonRaster, PolygonRaster)>> = vec![None; width as usize];
+        for raster in ab {
+            let cur_y = raster.coords.1;
+            let index = (raster.coords.0 + width_2) as usize;
+            hull[index] = match hull[index] {
+                None => Some((raster, raster)),
+                Some((rast_min, rast_max)) => Some((
+                    if rast_min.coords.1 > cur_y { raster } else { rast_min }, 
+                    if rast_max.coords.1 < cur_y { raster } else { rast_max })),
+            }
+        }
+        for raster in bc {
+            let cur_y = raster.coords.1;
+            let index = (raster.coords.0 + width_2) as usize;
+            hull[index] = match hull[index] {
+                None => Some((raster, raster)),
+                Some((rast_min, rast_max)) => Some((
+                    if rast_min.coords.1 > cur_y { raster } else { rast_min }, 
+                    if rast_max.coords.1 < cur_y { raster } else { rast_max })),
+            }
+        }
+        for raster in ac {
+            let cur_y = raster.coords.1;
+            let index = (raster.coords.0 + width_2) as usize;
+            hull[index] = match hull[index] {
+                None => Some((raster, raster)),
+                Some((rast_min, rast_max)) => Some((
+                    if rast_min.coords.1 > cur_y { raster } else { rast_min }, 
+                    if rast_max.coords.1 < cur_y { raster } else { rast_max })),
+            }
+        }
+
+        for maybe_raster in hull {
+            match maybe_raster {
+                None => { 
+                    // no-op
+                },
+                Some((rast_min, rast_max)) => {
+                    let x = rast_min.coords.0;
+                    let y0 = rast_min.coords.1;
+                    let y1 = rast_max.coords.1;
+                    for y in  y0..=y1 {
+                        let index = self.buff_offset(na::Vector2::new(x, y));
+                        self.color_buffer[index] = (255_u8, 0_u8, 0_u8);
+                    }
+                }
+            }
+        }
+    }
+
     // TODO #1: I couldn't write types for comparator so made it ugly and 
     // let compiler to do it for me. When you'll better in rust, come and fix it. 
     //
     // TODO #2: Wrap return type into struct and doc it because it might be confusing 
     // 4 u in the future.
     pub fn build_segment_hull_x<'a>(
-        rasters: &'a Vec<LineRaster<'a>>,
-        mapping: (usize, usize)) -> (i32, Vec<(PolygonRaster<'a>, PolygonRaster<'a>)>) {
+        rasters : &'a Vec<LineRaster<'a>>,
+        basis   : &'a VertexBasis3,
+        mapping : (usize, usize)) -> (i32, Vec<(PolygonRaster<'a>, PolygonRaster<'a>)>) {
         let xl = rasters.iter().min_by(|rast1, rast2| match rast1.coords.0.cmp(&rast2.coords.0) {
             std::cmp::Ordering::Equal => rast1.coords.0.cmp(&rast2.coords.1),
-            eq@_                      => eq,
+            ord@_                      => ord,
         }).unwrap().coords.0;
         let xr = rasters.iter().max_by(|rast1, rast2| match rast1.coords.0.cmp(&rast2.coords.0) {
             std::cmp::Ordering::Equal => rast1.coords.0.cmp(&rast2.coords.1),
-            eq@_                      => eq,
+            ord@_                      => ord,
         }).unwrap().coords.0;
         let dx = (xl - xr).abs();
         let mut hull = Vec::with_capacity((dx + 1) as usize);
@@ -139,9 +204,9 @@ impl Rasterizer_ {
                 right += 1;
             }
             let offset = (cur_x - xl) as usize;
-            /* TODO: implement basis advance
-            hull[offset] = (map_raster(&rasters[ptr], mapping), 
-                            map_raster(&rasters[right], mapping));
+            /*
+            hull[offset] = (Self::advance_basis(&rasters[ptr], basis, mapping),
+                            Self::advance_basis(&rasters[ptr], basis, mapping));
             */
             ptr = right + 1;
         }
@@ -149,10 +214,12 @@ impl Rasterizer_ {
     }
 
     pub fn advance_basis<'a>(
-        rast        : &'a LineRaster,
+        rast        : LineRaster<'a>,
         basis       : &'a VertexBasis3, 
         mapping     : (usize, usize)) -> PolygonRaster<'a> {
-        assert!(mapping.0 > 2 || mapping.1 > 3, "Wrong mapping, any element of permutation must be in [0, 2]");
+        println!("Mapping: {:?}", mapping);
+        assert!(mapping.0 <= 2 && mapping.1 <= 2 && mapping.0 != mapping.1, 
+                "Wrong mapping, any element must be unqiue and in [0, 2]");
         let mut map = [0.; 3];
         map[mapping.0] = rast.baricentric.0;
         map[mapping.1] = rast.baricentric.1;
@@ -163,10 +230,14 @@ impl Rasterizer_ {
         }
     }
 
-    pub fn rasterize_polygon<'a>(
-        &self,
-        basis: &'a VertexBasis2) -> Vec<PolygonRaster<'a>> {
-        unimplemented!()
+    pub fn advance_basis_many<'a>(
+        rasters     : Vec<LineRaster<'a>>,
+        basis       : &'a VertexBasis3,
+        mapping     : (usize, usize)) -> Vec<PolygonRaster<'a>> {
+        rasters
+            .into_iter()
+            .map(|rast2| Self::advance_basis(rast2, basis, mapping))
+            .collect()
     }
 
     pub fn rasterize_segment_<'a>(
