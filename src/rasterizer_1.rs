@@ -64,52 +64,40 @@ impl Rasterizer_ {
         (coords_u.x + coords_u.y * self.width) as usize
     }
 
+    pub fn render_poygon<'a>(
+        &mut self,
+        a: Vertex,
+        b: Vertex,
+        c: Vertex) {
+        let basis = VertexBasis3 {
+            x: a,
+            y: b,
+            z: c };
+
+        for raster in self.rasterize_polygon::<'a>(&basis) {
+            let coords_i = na::Vector2::new(raster.coords.0, raster.coords.1);
+            let index = self.buff_offset(coords_i);
+            self.color_buffer[index] = (255_u8, 0_u8, 0_u8);
+        }
+    }
+
+    
     /*
-    pub fn rasterize_triangle_color(
-        &mut self, 
-        a       : na::Vector3<f32>,
-        b       : na::Vector3<f32>,
-        c       : na::Vector3<f32>,
-        color   : RGB) {
-        let ai = utils::rasterize_dot_1(a.xy(), self.size());
-        let bi = utils::rasterize_dot_1(b.xy(), self.size());
-        let ci = utils::rasterize_dot_1(c.xy(), self.size());
-        let (x10, l1) = Self::line_hull_x((ai.x, ai.y), (bi.x, bi.y));
-        let (x20, l2) = Self::line_hull_x((bi.x, bi.y), (ci.x, ci.y));
-        let (x30, l3) = Self::line_hull_x((ai.x, ai.y), (ci.x, ci.y));
-        let xl = std::cmp::min(x10, std::cmp::min(x20, x30));
-        let xr = std::cmp::max(x10 + l1.len() as i32, 
-                 std::cmp::max(x20 + l2.len() as i32, 
-                               x30 + l3.len() as i32));
-
-        let dx = (xr - xl) as usize;
-        let mut hull = vec![(std::i32::MAX, std::i32::MIN); dx];
-        for i in 0..l1.len() {
-            let x = (i as i32 + x10 - xl) as usize;
-            let y = l1[i];
-            hull[x].0 = std::cmp::min(hull[x].0, y.0);
-            hull[x].1 = std::cmp::max(hull[x].1, y.1);
-        }
-        for i in 0..l2.len() {
-            let x = (i as i32 + x20 - xl) as usize;
-            let y = l2[i];
-            hull[x].0 = std::cmp::min(hull[x].0, y.0);
-            hull[x].1 = std::cmp::max(hull[x].1, y.1);
-        }
-        for i in 0..l3.len() {
-            let x = (i as i32 + x30 - xl) as usize;
-            let y = l3[i];
-            hull[x].0 = std::cmp::min(hull[x].0, y.0);
-            hull[x].1 = std::cmp::max(hull[x].1, y.1);
-        }
-
-        for x_ctr in 0..dx {
-            let x = x_ctr as i32 + xl;
-            let y_b = hull[x_ctr].0;
-            let y_t = hull[x_ctr].1;
-            for y in y_b..=y_t {
-                let index = self.buff_offset(na::Vector2::new(x, y));
-                self.color_buffer[index] = color;
+    pub fn render_polygon_2_0<'a>(
+        &mut self,
+        a: Vertex,
+        b: Vertex,
+        c: Vertex) {
+        let vertices = [a, b, c];
+        let vertices = self.geometry_2_0(vertices);
+        let rasters  = self.rasterize_polygon_2_0(&vertices);
+        let frags    = self.fragmentize_2_0(rasters);
+        let pixels   = self.fragment_2_0(frags);
+        for pixel in pixels {
+            let index = self.buff_offset(pixel.window_coords);
+            if self.depth_buffer[index] < pixel.depth {
+                self.color_buffer[index] = pixel.color_rgb;
+                self.depth_buffer[index] = pixel.depth;
             }
         }
     }
@@ -117,7 +105,7 @@ impl Rasterizer_ {
 
     pub fn rasterize_polygon<'a>(
         &mut self,
-        basis: &'a VertexBasis3) /* -> Vec<PolygonRaster<'a>> */ {
+        basis: &'a VertexBasis3) -> Vec<PolygonRaster<'a>> {
         let (a, b, c) = (&basis.x, &basis.y, &basis.z);
         let ab_basis = VertexBasis2{ x: *a, y: *b };
         let bc_basis = VertexBasis2{ x: *b, y: *c };
@@ -159,6 +147,7 @@ impl Rasterizer_ {
             }
         }
 
+        let mut result = vec![];
         for maybe_raster in hull {
             match maybe_raster {
                 None => { 
@@ -175,28 +164,19 @@ impl Rasterizer_ {
                         let sum = (d0 + d1) as f32;
                         let k0 = d1 as f32 / sum;
                         let k1 = d0 as f32 / sum;
-                        let vertex = PolygonRaster {
+                        result.push(PolygonRaster {
                             coords      : (x, y),
                             basis       : basis,
                             baricentric : (k0 * rast_min.baricentric.0 + k1 * rast_max.baricentric.0,
                                             k0 * rast_min.baricentric.1 + k1 * rast_max.baricentric.1,
                                             k0 * rast_min.baricentric.2 + k1 * rast_max.baricentric.2),
-                        };
-
-                        let cx = basis.x.color;
-                        let cy = basis.y.color;
-                        let cz = basis.z.color;
-                        let (kx, ky, kz) = vertex.baricentric;
-                        let color = (
-                            (cx.x as f32 * kx + cy.x as f32 * ky + cz.x as f32 * kz).round() as u8,
-                            (cx.y as f32 * kx + cy.y as f32 * ky + cz.y as f32 * kz).round() as u8,
-                            (cx.z as f32 * kx + cy.z as f32 * ky + cz.z as f32 * kz).round() as u8,
-                        );
-                        self.color_buffer[index] = color;
+                        });
                     }
                 }
             }
         }
+    
+        result
     }
 
     // TODO #1: I couldn't write types for comparator so made it ugly and 
