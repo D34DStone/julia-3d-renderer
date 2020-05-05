@@ -8,6 +8,10 @@ extern crate nalgebra as na;
 
 use gcanvas::{CanvasAPI, EventAPI, Event};
 use glfw_canvas::GlfwContext;
+use na::Vector4 as v4;
+use na::Vector3 as v3;
+use na::Vector2 as v2;
+use na::Matrix4 as mat4;
 
 #[allow(dead_code)]
 mod color {
@@ -24,41 +28,22 @@ const HEIGHT: u32 = 512;
 
 fn main() {
     let mut ctx = GlfwContext::new(WIDTH, HEIGHT, "George");
-    let mut rast = rasterizer_1::Rasterizer_::new(512, 512);
 
-    /*
-    for _i in 0..1024 {
-        rast.rasterize_triangle_color(
-            na::Vector3::<f32>::new(-0.1, 0.0, 1.0),
-            na::Vector3::<f32>::new(0.1, 0.1, 0.0),
-            na::Vector3::<f32>::new(0.1, -0.1, 0.0),
-            color::GREEN);
-    }
-    */
+    let mut julia = rasterizer_2::Julia3D::new(512, 512);
 
-    rast.render_segment_(
-        rasterizer_1::Vertex {
-            coords  : na::Vector3::new(0.0, 0.0, 0.0),
-            color   : na::Vector3::new(255_u8, 0_u8, 0_u8),
-        },
-        rasterizer_1::Vertex {
-            coords  : na::Vector3::new(0.5, 0.5, -0.5),
-            color   : na::Vector3::new(0_u8, 255_u8, 0_u8),
-        });
-
-    rast.render_poygon(
-        rasterizer_1::Vertex {
-            coords  : na::Vector3::new(0.0, 0.0, -1.0),
-            color   : na::Vector3::new(255_u8, 0_u8, 0_u8),
-        },
-        rasterizer_1::Vertex {
-            coords  : na::Vector3::new(0.5, 0.5, 1.0),
-            color   : na::Vector3::new(0_u8, 255_u8, 0_u8),
-        },
-        rasterizer_1::Vertex {
-            coords  : na::Vector3::new(0.5, 0.0, -1.0),
-            color   : na::Vector3::new(0_u8, 0_u8, 255_u8),
-        });
+    julia.render_polygon(
+            rasterizer_2::IVertex {
+                coords  : v3::new(-0.9, -0.9, 5.),
+                color   : v3::new(255., 0., 0.),
+            },
+            rasterizer_2::IVertex {
+                coords  : v3::new(-1., 0.5, 1.),
+                color   : v3::new(0., 0., 255.),
+            },
+            rasterizer_2::IVertex {
+                coords  : v3::new(0.5, 0.5, 1.),
+                color   : v3::new(0., 255., 0.),
+            });
 
     let mut working = true;
     while working {
@@ -72,6 +57,6 @@ fn main() {
                 }
             }
         }
-        ctx.update(rast.get_color_buffer_ptr());
+        ctx.update(julia.buff_ptr());
     }
 }
