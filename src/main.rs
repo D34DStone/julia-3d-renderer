@@ -3,8 +3,10 @@ mod glfw_canvas;
 mod math_utils;
 mod rasterizer_1;
 mod rasterizer_2;
+mod texture;
 
 extern crate nalgebra as na;
+extern crate bmp;
 
 use gcanvas::{CanvasAPI, EventAPI, Event};
 use glfw_canvas::GlfwContext;
@@ -12,6 +14,8 @@ use na::Vector4 as v4;
 use na::Vector3 as v3;
 use na::Vector2 as v2;
 use na::Matrix4 as mat4;
+
+use std::time::{Duration, Instant};
 
 #[allow(dead_code)]
 mod color {
@@ -31,19 +35,43 @@ fn main() {
 
     let mut julia = rasterizer_2::Julia3D::new(512, 512);
 
+    let tex = texture::Texture::new(std::path::Path::new("./textures/tex1.bmp"));
+
     julia.render_polygon(
             rasterizer_2::IVertex {
-                coords  : v3::new(-0.9, -0.9, 5.),
-                color   : v3::new(255., 0., 0.),
+                coords      : v3::new(-1., -1., 5.),
+                color       : v3::new(255., 0., 0.),
+                tex_coords  : v2::new(-1., -1.),
             },
             rasterizer_2::IVertex {
-                coords  : v3::new(-1., 0.5, 1.),
-                color   : v3::new(0., 0., 255.),
+                coords      : v3::new(-1., 1., 2.),
+                color       : v3::new(0., 0., 255.),
+                tex_coords  : v2::new(-1., 1.),
             },
             rasterizer_2::IVertex {
-                coords  : v3::new(0.5, 0.5, 1.),
-                color   : v3::new(0., 255., 0.),
-            });
+                coords      : v3::new(1., 1., 2.),
+                color       : v3::new(0., 255., 0.),
+                tex_coords  : v2::new(1., 1.),
+            }, 
+            &tex);
+
+    julia.render_polygon(
+            rasterizer_2::IVertex {
+                coords      : v3::new(-1., -1., 5.),
+                color       : v3::new(255., 0., 0.),
+                tex_coords  : v2::new(-1., -1.),
+            },
+            rasterizer_2::IVertex {
+                coords      : v3::new(1., -1., 5.),
+                color       : v3::new(0., 0., 255.),
+                tex_coords  : v2::new(1., -1.),
+            },
+            rasterizer_2::IVertex {
+                coords      : v3::new(1., 1., 2.),
+                color       : v3::new(0., 255., 0.),
+                tex_coords  : v2::new(1., 1.),
+            }, 
+            &tex);
 
     let mut working = true;
     while working {

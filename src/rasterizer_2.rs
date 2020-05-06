@@ -1,4 +1,5 @@
 use nalgebra as na;
+use super::texture::Texture;
 use na::Vector4 as v4;
 use na::Vector3 as v3;
 use na::Vector2 as v2;
@@ -7,14 +8,16 @@ use na::Matrix4 as mat4;
 use std::convert::TryInto;
 
 pub struct IVertex {
-    pub coords  : v3<f32>,
-    pub color   : v3<f32>,
+    pub coords      : v3<f32>,
+    pub color       : v3<f32>,
+    pub tex_coords  : v2<f32>,
 }
 
 #[derive(Clone, Copy)]
 struct Vertex {
-    coords  : v4<f32>,
-    color   : v3<f32>,
+    coords      : v4<f32>,
+    color       : v3<f32>,
+    tex_coords  : v2<f32>,
 }
 
 type Basis<'a> = [&'a Vertex; 3];
@@ -30,6 +33,7 @@ struct Fragment {
     window_coords   : v2<i32>,
     depth           : f32,
     color           : v3<f32>,
+    tex_coords      : v2<f32>,
 }
 
 pub struct Julia3D {
@@ -54,7 +58,8 @@ impl Julia3D {
         &mut self,
         a: IVertex,
         b: IVertex,
-        c: IVertex) {
+        c: IVertex,
+        tex: &Texture) {
         let ivertices   = vec![a, b, c];
         let vertices    = self.geometry(ivertices);
         let basis       = [&vertices[0], &vertices[1], &vertices[2]];
@@ -64,10 +69,7 @@ impl Julia3D {
             let index = self.buff_offset(frag.window_coords);
             if frag.depth > self.depth_buffer[index] {
                 self.depth_buffer[index];
-                self.color_buffer[index] = (
-                    frag.color.x.round() as u8,
-                    frag.color.y.round() as u8,
-                    frag.color.z.round() as u8);
+                self.color_buffer[index] = tex.get_pixel(frag.tex_coords);
             }
         }
     }
@@ -82,8 +84,9 @@ impl Julia3D {
                               v.coords.z,
                               v.coords.z);
         Vertex {
-            coords  : coords4,
-            color   : v.color,
+            coords      : coords4,
+            color       : v.color,
+            tex_coords  : v.tex_coords,
         }
     }
 
@@ -158,10 +161,12 @@ impl Julia3D {
             let v1_w = r.baricentric.x / v1.coords.w;
             let v2_w = r.baricentric.y / v2.coords.w;
             let v3_w = r.baricentric.z / v3.coords.w;
+            let tex_coords = (v1.tex_coords * v1_w + v2.tex_coords * v2_w + v3.tex_coords * v3_w) / (v1_w + v2_w + v3_w);
             let color = (v1.color * v1_w + v2.color * v2_w + v3.color * v3_w) / (v1_w + v2_w + v3_w);
             Fragment {
                 window_coords   : r.window_coords,
                 color           : color,
+                tex_coords      : tex_coords,
                 depth           : 0.,
             }
         }).collect()
