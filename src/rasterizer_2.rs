@@ -5,19 +5,15 @@ use na::Vector3 as v3;
 use na::Vector2 as v2;
 use na::Matrix4 as mat4;
 
-use std::convert::TryInto;
-
 #[derive(Clone, Copy)]
 pub struct IVertex {
     pub coords      : v3<f32>,
-    pub color       : v3<f32>,
     pub tex_coords  : v2<f32>,
 }
 
 #[derive(Clone, Copy)]
 struct Vertex {
     coords      : v4<f32>,
-    color       : v3<f32>,
     tex_coords  : v2<f32>,
 }
 
@@ -33,7 +29,6 @@ struct Raster<'a> {
 struct Fragment {
     window_coords   : v2<i32>,
     depth           : f32,
-    color           : v3<f32>,
     tex_coords      : v2<f32>,
 }
 
@@ -83,7 +78,7 @@ impl Julia3D {
         }
     }
 
-    pub fn geometry_2(&self, iverts: &[IVertex], model: mat4<f32>) -> Vec<Vertex> {
+    fn geometry_2(&self, iverts: &[IVertex], model: mat4<f32>) -> Vec<Vertex> {
         iverts.iter().map(|iv| Self::shader_2(*iv, model)).collect()
     }
 
@@ -102,12 +97,11 @@ impl Julia3D {
 
         Vertex {
             coords      : coords,
-            color       : iv.color,
             tex_coords  : iv.tex_coords,
         }
     }
 
-    pub fn rasterize_polygon<'a>(&self, basis: &'a Basis) -> Vec<Raster<'a>> {
+    fn rasterize_polygon<'a>(&self, basis: &'a Basis) -> Vec<Raster<'a>> {
         let mut rasters = vec![];
         rasters.extend(self.rasterize_line(basis, (0, 1)).into_iter());
         rasters.extend(self.rasterize_line(basis, (1, 2)).into_iter());
@@ -170,7 +164,7 @@ impl Julia3D {
             .collect()
     }
 
-    pub fn fragment(&self, rs: Vec<Raster>) -> Vec<Fragment> {
+    fn fragment(&self, rs: Vec<Raster>) -> Vec<Fragment> {
         rs.into_iter().map(|r| {
             let v1 = r.basis[0];
             let v2 = r.basis[1];
@@ -179,17 +173,15 @@ impl Julia3D {
             let v2_w = r.baricentric.y / v2.coords.w;
             let v3_w = r.baricentric.z / v3.coords.w;
             let tex_coords = (v1.tex_coords * v1_w + v2.tex_coords * v2_w + v3.tex_coords * v3_w) / (v1_w + v2_w + v3_w);
-            let color = (v1.color * v1_w + v2.color * v2_w + v3.color * v3_w) / (v1_w + v2_w + v3_w);
             Fragment {
                 window_coords   : r.window_coords,
-                color           : color,
                 tex_coords      : tex_coords,
                 depth           : 0.,
             }
         }).collect()
     }
 
-    pub fn buff_offset(&self, window_coords: v2<i32>) -> usize {
+    fn buff_offset(&self, window_coords: v2<i32>) -> usize {
         let coords_u = window_coords + self.shape / 2;
         (coords_u.x + coords_u.y * self.shape.x) as usize
     }
