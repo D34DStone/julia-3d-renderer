@@ -7,6 +7,7 @@ use na::Matrix4 as mat4;
 
 use std::convert::TryInto;
 
+#[derive(Clone, Copy)]
 pub struct IVertex {
     pub coords      : v3<f32>,
     pub color       : v3<f32>,
@@ -54,39 +55,55 @@ impl Julia3D {
 
     pub fn buff_ptr(&self) -> *const (u8, u8, u8) { self.color_buffer.as_ptr() }
 
-    pub fn render_polygon<'a>(
+    pub fn clear(&mut self) {
+        self.color_buffer = vec![(0_u8, 0_u8, 0_u8); self.color_buffer.len()];
+    }
+
+    pub fn render(
         &mut self,
-        a: IVertex,
-        b: IVertex,
-        c: IVertex,
-        tex: &Texture) {
-        let ivertices   = vec![a, b, c];
-        let vertices    = self.geometry(ivertices);
-        let basis       = [&vertices[0], &vertices[1], &vertices[2]];
-        let rasters     = self.rasterize_polygon(&basis);   // mock (stroke only)
-        let fragments   = self.fragment(rasters);           // mock (no depth interpolation)
-        for frag in fragments {
-            let index = self.buff_offset(frag.window_coords);
-            if frag.depth > self.depth_buffer[index] {
-                self.depth_buffer[index];
-                self.color_buffer[index] = tex.get_pixel(frag.tex_coords);
+        ivertices   : &[IVertex],
+        faces       : &[(i32, i32, i32)],
+        texture     : &Texture,
+        model_mat   : mat4<f32>) {
+        let vertices = self.geometry_2(ivertices, model_mat);
+        for (a, b, c) in faces {
+            let basis = [&vertices[*a as usize], 
+                         &vertices[*b as usize],
+                         &vertices[*c as usize]];
+
+            let rasters = self.rasterize_polygon(&basis);
+            let fragments = self.fragment(rasters);
+            for frag in fragments {
+                let index = self.buff_offset(frag.window_coords);
+                if frag.depth > self.depth_buffer[index] {
+                    self.depth_buffer[index];
+                    self.color_buffer[index] = texture.get_pixel(frag.tex_coords);
+                }
             }
         }
     }
 
-    pub fn geometry(&self, ivertices: Vec<IVertex>) -> Vec<Vertex> {
-        ivertices.into_iter().map(|v| Self::shader(v)).collect()
+    pub fn geometry_2(&self, iverts: &[IVertex], model: mat4<f32>) -> Vec<Vertex> {
+        iverts.iter().map(|iv| Self::shader_2(*iv, model)).collect()
     }
 
-    fn shader(v: IVertex) -> Vertex {
-        let coords4 = v4::new(v.coords.x / v.coords.z, 
-                              v.coords.y / v.coords.z, 
-                              v.coords.z,
-                              v.coords.z);
+    fn shader_2(iv: IVertex, model: mat4<f32>) -> Vertex {
+        let coords = v4::new(iv.coords.x, 
+                             iv.coords.y,
+                             iv.coords.z,
+                             1.);
+
+        let coords = model * coords;
+        let coords = v4::new(
+            coords.x / coords.z,
+            coords.y / coords.z,
+            coords.z,
+            coords.z);
+
         Vertex {
-            coords      : coords4,
-            color       : v.color,
-            tex_coords  : v.tex_coords,
+            coords      : coords,
+            color       : iv.color,
+            tex_coords  : iv.tex_coords,
         }
     }
 
