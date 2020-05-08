@@ -43,7 +43,7 @@ impl Julia3D {
         let buff_sz = (width * height) as usize;
         Self {
             color_buffer    : vec![(0_u8, 0_u8, 0_u8); buff_sz],
-            depth_buffer    : vec![-1.; buff_sz],
+            depth_buffer    : vec![-1000.; buff_sz],
             shape           : v2::new(width, height),
         }
     }
@@ -52,6 +52,7 @@ impl Julia3D {
 
     pub fn clear(&mut self) {
         self.color_buffer = vec![(0_u8, 0_u8, 0_u8); self.color_buffer.len()];
+        self.depth_buffer = vec![-1000.0; self.depth_buffer.len()];
     }
 
     pub fn render(
@@ -70,8 +71,8 @@ impl Julia3D {
             let fragments = self.fragment(rasters);
             for frag in fragments {
                 let index = self.buff_offset(frag.window_coords);
-                if frag.depth > self.depth_buffer[index] {
-                    self.depth_buffer[index];
+                if index < self.color_buffer.len() && frag.depth > self.depth_buffer[index] {
+                    self.depth_buffer[index] = frag.depth;
                     self.color_buffer[index] = texture.get_pixel(frag.tex_coords);
                 }
             }
@@ -110,7 +111,11 @@ impl Julia3D {
         let mut scanline = vec![None; self.shape.x as usize];
         let w_2 = self.shape.x / 2;
         for raster in rasters {
-            let index = (raster.window_coords.x + w_2) as usize;
+            let index = raster.window_coords.x + w_2;
+            if index < 0 || index >= self.shape.x {
+                continue;
+            }
+            let index = index as usize;
             scanline[index] = match scanline[index] {
                 None => Some((raster, raster)),
                 Some((rast_min, rast_max)) => Some((
@@ -173,10 +178,11 @@ impl Julia3D {
             let v2_w = r.baricentric.y / v2.coords.w;
             let v3_w = r.baricentric.z / v3.coords.w;
             let tex_coords = (v1.tex_coords * v1_w + v2.tex_coords * v2_w + v3.tex_coords * v3_w) / (v1_w + v2_w + v3_w);
+            let depth = v1_w + v2_w + v3_w; // Idk why but it works :|
             Fragment {
                 window_coords   : r.window_coords,
                 tex_coords      : tex_coords,
-                depth           : 0.,
+                depth           : depth,
             }
         }).collect()
     }
