@@ -30,7 +30,9 @@ pub enum MouseKey {
 #[allow(dead_code)]
 pub enum Event {
     Close,
+    None,
     KeyPressed(char),
-    MouseMoved(i32, i32),
+    KeyReleased(char),
+    MouseMoved(f32, f32),
     MouseClicked(MouseKey, i32, i32),
 }

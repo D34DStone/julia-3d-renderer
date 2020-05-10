@@ -5,6 +5,8 @@ use na::Vector3 as v3;
 use na::Vector2 as v2;
 use na::Matrix4 as mat4;
 
+use std::time::{Instant};
+
 #[derive(Clone, Copy)]
 pub struct IVertex {
     pub coords      : v3<f32>,
@@ -61,13 +63,18 @@ impl Julia3D {
         faces       : &[(i32, i32, i32)],
         texture     : &Texture,
         model_mat   : mat4<f32>) {
+        // let mut time_acc_ms = 0;
         let vertices = self.geometry_2(ivertices, model_mat);
         for (a, b, c) in faces {
+
+
             let basis = [&vertices[*a as usize], 
                          &vertices[*b as usize],
                          &vertices[*c as usize]];
 
+            // let now = Instant::now();                                   // TIME MES BEGIN
             let rasters = self.rasterize_polygon(&basis);
+            // time_acc_ms += now.elapsed().as_millis();                   // LOCAL MES TO ACC
             let fragments = self.fragment(rasters);
             for frag in fragments {
                 let index = self.buff_offset(frag.window_coords);
@@ -76,7 +83,9 @@ impl Julia3D {
                     self.color_buffer[index] = texture.get_pixel(frag.tex_coords);
                 }
             }
+
         }
+        // println!("Time elapsed {}ms", time_acc_ms);
     }
 
     fn geometry_2(&self, iverts: &[IVertex], model: mat4<f32>) -> Vec<Vertex> {
@@ -89,11 +98,13 @@ impl Julia3D {
                              iv.coords.z,
                              1.);
 
+        let far     = 1000.;
+        let near    = 0.01;
         let coords = model * coords;
         let coords = v4::new(
             coords.x / coords.z,
             coords.y / coords.z,
-            coords.z,
+            -(far + near) / (far - near) - 2. * far * near / (coords.z * (far - near)),
             coords.z);
 
         Vertex {
@@ -178,13 +189,13 @@ impl Julia3D {
             let v2_w = r.baricentric.y / v2.coords.w;
             let v3_w = r.baricentric.z / v3.coords.w;
             let tex_coords = (v1.tex_coords * v1_w + v2.tex_coords * v2_w + v3.tex_coords * v3_w) / (v1_w + v2_w + v3_w);
-            let depth = v1_w + v2_w + v3_w; // Idk why but it works :|
+            let depth = v1.coords.z * r.baricentric.x + v2.coords.z * r.baricentric.y + v3.coords.z * r.baricentric.z; // Idk why but it works :|
             Fragment {
                 window_coords   : r.window_coords,
                 tex_coords      : tex_coords,
                 depth           : depth,
             }
-        }).collect()
+        }).filter(|f| -1. <= f.depth && f.depth <= 1.).collect()
     }
 
     fn buff_offset(&self, window_coords: v2<i32>) -> usize {
